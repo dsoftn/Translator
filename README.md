@@ -42,6 +42,10 @@ Translator can also be used as TCP Server if you want to use it as a service for
 7)  Response will be size of JSON, string containing JSON size in bytes ended with \\n
 8)  Then server will send JSON, {"translated_text": "Это текст, который я хочу перевести", "status": "OK"}
 
+## Requirements
+- Python 3.10 or higher
+- pip install -r requirements.txt
+
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
