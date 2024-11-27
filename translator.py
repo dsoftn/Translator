@@ -39,6 +39,7 @@ ARG_START_SERVER = ["--start_server", "-start_server", "start_server", "--server
 ALL_ARGUMENTS = ARG_HELP + ARG_VERSION + ARG_DETECT + ARG_OVERWRITE + ARG_TEXT + ARG_INPUT + ARG_OUTPUT + ARG_FROM + ARG_TO + ARG_START_SERVER
 
 SERVER_SHUTDOWN_COMMAND = ["exit", "quit", "q", "stop", "shutdown"]
+SERVER_IGNORE_COMMAND = ["ignore"]
 
 # Set default values
 text = None
@@ -48,13 +49,15 @@ input_file = None
 output_file = None
 can_overwrite = False
 
+def write_to_file(text):
+    with open("translator.log", "a") as f:
+        f.write(text)
 
 def main():
     global text, from_language, to_language, input_file, output_file, can_overwrite
 
     # Execute args that dont require translation
     execute_arguments(sys.argv)
-    # execute_arguments(["translator", 'text="neki moj tekst"', "to=ee"])
 
     # Check if all required arguments are provided
 
@@ -135,14 +138,21 @@ def main():
     
 
 def handle_client(client_socket: socket.socket):
+    client_socket.settimeout(5)
     status = ""
     try:
         # Receive JSON size
         size_data = b""
         while b"\n" not in size_data:
-            size_data += client_socket.recv(1)
+            data_chunk = client_socket.recv(1)
+            if not data_chunk:
+                print ("Client disconnected.")
+                client_socket.close()
+                return
+            size_data += data_chunk
 
         size_data = size_data.decode('utf-8').strip()
+        print(f"Received JSON size: {size_data}")
 
         try:
             expected_size = int(size_data)
@@ -155,15 +165,20 @@ def handle_client(client_socket: socket.socket):
         while len(received_data) < expected_size:
             chunk = client_socket.recv(1024)
             if not chunk:
-                break
+                print("Client disconnected.")
+                client_socket.close()
+                return
             received_data += chunk
-        
-        
+        print(f"Received JSON: {truncate(str(received_data))}")
+
         try:
             if received_data.decode('utf-8').lower().lower() in SERVER_SHUTDOWN_COMMAND:
                 print("Server shutting down...")
                 client_socket.close()
                 sys.exit(0)
+            elif received_data.decode('utf-8').lower().lower() in SERVER_IGNORE_COMMAND:
+                client_socket.close()
+                return
         except UnicodeDecodeError as e:
             print(f"Error decoding JSON: {e}")
             status += "Error decoding JSON: " + str(e) + "\n"
@@ -204,6 +219,9 @@ def handle_client(client_socket: socket.socket):
             status = "OK"
         response_data = {"translated_text": translated_text, "status": status}
 
+        print(f"Translated text: {truncate(translated_text, max_length=55, return_length=50)}", end="")
+        print(f"Status: {status}")
+
         # Send response to client
         try:
             # Send JSON size
@@ -211,9 +229,11 @@ def handle_client(client_socket: socket.socket):
             response_bytes = json_response.encode('utf-8')
             size = len(response_bytes)
             client_socket.send(f"{size}\n".encode('utf-8'))
+            print(f"Sent JSON size: {size}")
 
             # Send JSON
             client_socket.sendall(response_bytes)
+            print(f"Sent JSON: {truncate(str(json_response))}")
 
         except Exception as e:
             print(f"Error. Client disconnected?: {e}")
@@ -223,6 +243,10 @@ def handle_client(client_socket: socket.socket):
         print("Server shutting down...")
         client_socket.close()
         sys.exit(0)
+    except socket.timeout:
+        print("Client disconnected.")
+        client_socket.close()
+        return
     except Exception as e:
         print(f"Error: {e}")
         return
@@ -244,7 +268,7 @@ def start_server():
     # Handle clients
     while True:
         client_socket, address = server.accept()
-        print(f"New client connected: {address}")
+        print(f"\nNew client connected: {address}")
         handle_client(client_socket)
 
 def execute_arguments(args):
@@ -470,14 +494,15 @@ MOST COMMON USAGE:
              If error occurs, the created output file will contain only the error message.
 
 SERVER USAGE:
-1)  Start TCP server: translator -server
-2)  Make TCP Client in your app and send data to 127.0.0.1:29975
-3)  First send size of JSON, string containing JSON size in bytes ended with \\n
-4)  Then send JSON, {"text": "This is a text i want to translate", "from": "en", "to": "ru"}
-5)  If you want to shutdown the server, send string "quit" instead of JSON
-6)  Wait for server response
-7)  Response will be size of JSON, string containing JSON size in bytes ended with \\n
-8)  Then server will send JSON, {"translated_text": "Это текст, который я хочу перевести", "status": "OK"}
+1)   Start TCP server: translator -server
+2)   Make TCP Client in your app and send data to 127.0.0.1:29975
+3)   First send size of JSON, string containing JSON size in bytes ended with \\n
+4)   Then send JSON, {"text": "This is a text i want to translate", "from": "en", "to": "ru"}
+5.1) If you want to shutdown the server, send string "quit" instead of JSON
+5.2) If you send string "ignore" server will not respond (use this if want to check is server on port 29975)
+6)   Wait for server response
+7)   Response will be size of JSON, string containing JSON size in bytes ended with \\n
+8)   Then server will send JSON, {"translated_text": "Это текст, который я хочу перевести", "status": "OK"}
 """
     
     print(help_message)

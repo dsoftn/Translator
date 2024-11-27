@@ -30,7 +30,7 @@ def translator_client(text_to_translate: str, from_language: str, to_language: s
     json_request = json.dumps(request_data)
 
     # If you want to shutdown the server enable line below
-    # json_request = "quit"
+    json_request = "quit"
     # ---------------------------------------------------------------------
 
     if not silent:
