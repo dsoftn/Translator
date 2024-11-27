@@ -8,7 +8,9 @@ import os
 import socket
 import json
 import time
+import locale
 
+locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 """
 This app will translate any text from one language to another.
@@ -138,6 +140,8 @@ def main():
     
 
 def handle_client(client_socket: socket.socket):
+    truncate_size = 100
+
     client_socket.settimeout(5)
     status = ""
     try:
@@ -169,7 +173,7 @@ def handle_client(client_socket: socket.socket):
                 client_socket.close()
                 return
             received_data += chunk
-        print(f"Received JSON: {truncate(str(received_data))}")
+        print(f"Received JSON: {truncate(str(received_data), max_length=truncate_size, return_length=truncate_size - 5)}")
 
         try:
             if received_data.decode('utf-8').lower().lower() in SERVER_SHUTDOWN_COMMAND:
@@ -219,7 +223,7 @@ def handle_client(client_socket: socket.socket):
             status = "OK"
         response_data = {"translated_text": translated_text, "status": status}
 
-        print(f"Translated text: {truncate(translated_text, max_length=55, return_length=50)}", end="")
+        print(f"Translated text: {truncate(translated_text, max_length=85, return_length=80)}", end="")
         print(f"Status: {status}")
 
         # Send response to client
@@ -233,7 +237,7 @@ def handle_client(client_socket: socket.socket):
 
             # Send JSON
             client_socket.sendall(response_bytes)
-            print(f"Sent JSON: {truncate(str(json_response))}")
+            print(f"Sent JSON: {truncate(str(json_response), max_length=truncate_size, return_length=truncate_size - 5)}")
 
         except Exception as e:
             print(f"Error. Client disconnected?: {e}")
@@ -376,6 +380,7 @@ def truncate(text, max_length=65, return_length=60, invisible_text="..."):
 def translate_text(text, trans_from_language, trans_to_language):
     result = ""
     translator = googletrans.Translator()
+    translator
 
     text_chunks = split_text(text)
     for idx, text_chunk in enumerate(text_chunks):
